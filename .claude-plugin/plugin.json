@@ -1,0 +1,25 @@
+{
+  "name": "mermaid",
+  "version": "0.1.0",
+  "description": "Render ```mermaid fences in assistant replies as Unicode box-drawing diagrams in the terminal transcript",
+  "author": {
+    "name": "WhiteKr",
+    "email": "white_kr@icloud.com"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/WhiteKr/claude-plugin-mermaid.git",
+  "keywords": [
+    "mermaid",
+    "diagram",
+    "ascii",
+    "ui.render"
+  ],
+  "userConfig": {
+    "useAscii": {
+      "type": "boolean",
+      "description": "박스 문자(┌─│▶) 대신 순수 ASCII(+-|>)로 그린다. 터미널/폰트가 박스 문자 폭을 잘못 재서 줄이 어긋날 때 켠다.",
+      "default": false,
+      "title": "Plain ASCII"
+    }
+  }
+}
