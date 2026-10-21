@@ -1,6 +1,7 @@
-// mermaid 코드 펜스를 beautiful-mermaid ASCII 렌더러로 그린다.
-// 터미널은 박스 문자 텍스트로, Svg 요소가 있는 화면(desktop 등)은 같은 격자를 SVG 이미지로.
+// mermaid 코드 펜스를 다이어그램으로 그린다.
+// 터미널은 lovely-mermaid 박스 문자 텍스트로, Svg 요소가 있는 화면(desktop 등)은 beautiful-mermaid ASCII 격자를 SVG 이미지로.
 // SVG 렌더러(renderMermaidSVG)는 elkjs(1.4MB)를 끌어와 hooks 모듈 상한 1MiB를 넘으므로 쓰지 않는다.
+import { render } from 'lovely-mermaid';
 import { renderMermaidAscii } from '../node_modules/beautiful-mermaid/src/ascii/index.ts'; // exports 맵이 src를 막아 직접 경로
 
 const FENCE = /```mermaid[^\n]*\n([\s\S]*?)\n[ \t]*```/g;
@@ -32,20 +33,38 @@ function cached(key, render) {
   return cache.get(key);
 }
 
-// 라벨 안의 리터럴 \n은 렌더러가 줄바꿈으로 그리다 박스를 깨뜨리므로 공백으로 바꾼다.
+// SVG용 격자: 라벨 안의 리터럴 \n은 렌더러가 줄바꿈으로 그리다 박스를 깨뜨리므로 공백으로 바꾼다.
 // 렌더러는 .length로 폭을 재므로 2칸짜리 CJK 글자 뒤에 zero-width space를 넣어 폭을 맞추고, 그린 뒤 제거한다.
 const WIDE = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/g;
 const ZWSP = '\u200B';
 const isWide = (ch) => ch.search(WIDE) === 0;
-const displayWidth = (line) => line.length + (line.match(WIDE)?.length ?? 0);
 
-const grid = (source, useAscii) =>
-  cached('grid:' + useAscii + ':' + source, () =>
-    renderMermaidAscii(source.replace(/\\n/g, ' ').replace(WIDE, '$&' + ZWSP), { colorMode: 'none', paddingY: 3, useAscii })
+const grid = (source) =>
+  cached('grid:' + source, () =>
+    renderMermaidAscii(source.replace(/\\n/g, ' ').replace(WIDE, '$&' + ZWSP), { colorMode: 'none', paddingY: 3 })
       .replaceAll(ZWSP, '')
       .replace(/[ \t]+$/gm, '') // 줄 끝 패딩 제거
       .trimEnd(),
   );
+
+const art = (source) => cached('art:' + source, () => render(source));
+
+// lovely-mermaid에는 ASCII 모드가 없어 그린 뒤 글자를 하나씩 바꾼다. 바꾸는 글자는 모두 1칸이라 정렬이 그대로다.
+const ASCII = {};
+const ascii = (to, glyphs) => [...glyphs].forEach((g) => (ASCII[g] = to));
+ascii('-', '─━═╴╶╸╺');
+ascii('|', '│┃║╵╷╹╻');
+ascii('.', '╌┄┈╍┅┉░…');
+ascii(':', '╎┆┊╏┇┋');
+ascii('>', '▶►▷→⇒');
+ascii('<', '◀◄◁←⇐');
+ascii('^', '▲△↑');
+ascii('v', '▼▽↓');
+ascii('*', '●◆');
+ascii('o', '◇○◯');
+ascii('#', '█▉▊▋▌▍▎▏');
+const toAscii = (line) =>
+  line.replace(/[\u2026\u2190-\u21FF\u2500-\u25FF]/g, (ch) => ASCII[ch] ?? (ch >= '\u2500' && ch <= '\u257F' ? '+' : ch)); // 나머지 박스 문자는 모서리·교차
 
 // 이미지 속 글꼴은 믿을 수 없으니 격자의 선·화살표는 벡터로 그리고, 글자만 <text>로 둔다.
 const CELL = 9;
@@ -200,7 +219,7 @@ function gridSvg(text) {
 // useAscii는 터미널 글꼴 폭 문제용이라 칸 위치를 박는 SVG에는 쓰지 않는다.
 const svg = (source) =>
   cached('svg:' + source, () => {
-    const text = grid(source, false);
+    const text = grid(source);
     const out = text === null ? null : gridSvg(text);
     return out !== null && out.length <= SVG_MAX ? out : null;
   });
@@ -211,10 +230,10 @@ function drawText(segs, { e, next, useAscii }) {
   const text = segs
     .map((s) => {
       if (s.kind === 'markdown') return s.text;
-      const out = grid(s.source, useAscii);
-      if (out === null || out.split('\n').some((l) => displayWidth(l) > maxColumns)) return s.fence; // 터미널 폭 초과: 줄바꿈으로 깨지느니 원문
+      const a = art(s.source);
+      if (a === null || a.width > maxColumns) return s.fence; // 터미널 폭 초과: 줄바꿈으로 깨지느니 원문
       changed = true;
-      return '```\n' + out + '\n```';
+      return '```\n' + (useAscii ? a.plain.map(toAscii) : a.plain).join('\n') + '\n```';
     })
     .join('');
   return changed ? next({ ...e, props: { ...e.props, text } }) : next(e);

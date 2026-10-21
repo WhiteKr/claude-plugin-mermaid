@@ -22,15 +22,19 @@ assert.equal(run(md, 20), md, 'too wide for viewport: original kept');
 assert.equal(run('```mermaid\nnot a diagram %%%\n```'), '```mermaid\nnot a diagram %%%\n```', 'parse failure: original kept');
 assert.equal(run('plain text'), 'plain text', 'no fence: untouched');
 assert.equal(run('```mermaid\nflowchart LR\n A-->B'), '```mermaid\nflowchart LR\n A-->B', 'unclosed fence (streaming): untouched');
-const ko = run('```mermaid\nflowchart LR\n  A[사용자] --> B[서버]\n```').split('\n');
-const width = (l) => l.length + (l.match(/[\uAC00-\uD7A3]/g)?.length ?? 0); // 한글은 2칸
-const mid = ko.find((l) => l.includes('사용자'));
-assert.ok(!mid.includes('\u200B'), 'zwsp stripped');
-assert.equal(width(ko[1]), width(mid), 'korean label: border row and label row have equal display width');
+const width = (l) => [...l].reduce((n, ch) => n + (/[\uAC00-\uD7A3]/.test(ch) ? 2 : 1), 0); // 한글은 2칸
+const box = (text) => text.split('\n').filter((l) => /[│┌└]/.test(l));
+const ko = box(run('```mermaid\nflowchart LR\n  A[사용자] --> B[서버]\n```'));
+assert.equal(ko.length, 3, 'korean flowchart: three box rows');
+assert.ok(ko.every((l) => width(l) === width(ko[0])), 'korean label: every row of the boxes has the same display width');
 assert.equal(run('```mermaid\nflowchart LR\n  A[사용자] --> B[서버]\n```', 16), '```mermaid\nflowchart LR\n  A[사용자] --> B[서버]\n```', 'width guard counts CJK as 2 cells');
+const lr = run('```mermaid\nflowchart LR\n  A[사용자 응답] --> B{mermaid 펜스?}\n  B -->|예| C[다이어그램으로 그림]\n  B -->|아니오| D[원문 유지]\n```');
+assert.ok(/펜스\? ╟/.test(lr), 'decision border touches the outgoing edge');
+assert.ok(!/[│║] +[├┤╟╢]/.test(lr), 'no gap between a box and its edge junction');
 assert.ok(!run('```mermaid\nsequenceDiagram\n  A->>B: x\\ny\n```').split('\n').some((l) => /^[^│]*y/.test(l)), 'literal \\n in label does not break out of the box');
 register((_, __, fn) => (hook = fn), { useAscii: true });
 assert.ok(run(md).includes('+--'), 'useAscii option renders plain ASCII');
+assert.ok([...run(md)].every((ch) => ch < '\u0080'), 'useAscii: no non-ASCII glyph left');
 
 register((_, __, fn) => (hook = fn), {});
 const tree = draw('desktop', md);
