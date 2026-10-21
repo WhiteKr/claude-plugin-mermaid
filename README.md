@@ -1,6 +1,6 @@
 # mermaid
 
-Claude 응답의 ```` ```mermaid ```` 코드 블록을 터미널 transcript에서 유니코드 박스 다이어그램으로 바꿔 그리는 function-hook 플러그인. `/show-me` 같은 스킬이 내는 mermaid 코드가 대상이다.
+Claude 응답의 ```` ```mermaid ```` 코드 블록을 다이어그램으로 바꿔 그리는 function-hook 플러그인. 터미널에서는 유니코드 박스 텍스트로, desktop·VS Code·모바일에서는 같은 다이어그램을 SVG 이미지로 그린다. `/show-me` 같은 스킬이 내는 mermaid 코드가 대상이다.
 
 ## 설치
 
@@ -13,8 +13,11 @@ Claude 응답의 ```` ```mermaid ```` 코드 블록을 터미널 transcript에�
 
 ## 동작
 
-- `ui.render` 의 `AssistantMessage` 를 훅해 닫힌 ```` ```mermaid ```` 펜스를 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) ASCII 렌더러로 그린 결과로 치환한다. 저장된 메시지(ctrl+o)는 바뀌지 않고 화면만 바뀐다.
-- 원문을 유지하는 경우: 파싱 실패, 다이어그램 폭이 터미널 폭을 넘김, 펜스가 아직 안 닫힘(스트리밍 중).
+- `ui.render` 의 `AssistantMessage` 를 훅해 닫힌 ```` ```mermaid ```` 펜스를 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) ASCII 렌더러로 그린다. 저장된 메시지(ctrl+o)는 바뀌지 않고 화면만 바뀐다.
+- `e.surface` 로 그리는 방식을 고른다(엔진의 `$.ui.resolve()` 는 터미널에도 `Svg` 키를 주므로 요소 표로는 고를 수 없다).
+  - 터미널: 펜스를 박스 문자 코드 블록으로 치환한다.
+  - desktop·VS Code·모바일: 메시지를 `Markdown` 과 `Svg` 로 나눠 그린다. SVG는 같은 박스 문자 격자에서 선·모서리·화살촉을 벡터 선과 도형으로 다시 그리고, 라벨만 글자로 남겨 상자 가운데에 맞춘다. 그래서 글꼴과 상관없이 선이 끊기지 않고 한글 라벨도 벌어지지 않는다. 폭이 넘치면 칸에 맞게 줄어든다. SVG는 자기 배경을 가지며, 배경·선·글자색을 `prefers-color-scheme` 하나로 함께 바꾼다. 이미지 속 SVG는 화면이 아니라 OS 테마를 따르므로, 화면 테마가 OS와 달라도 글자가 배경에 묻히지 않게 하려는 것이다.
+- 원문을 유지하는 경우: 파싱 실패, 다이어그램 폭이 터미널 폭을 넘김(터미널만), 펜스가 아직 안 닫힘(스트리밍 중).
 - 라벨 안의 리터럴 `\n` 은 공백으로 바꾼다(렌더러가 줄바꿈으로 그리면 박스가 깨짐).
 - 지원 다이어그램은 beautiful-mermaid ASCII 렌더러가 지원하는 범위(flowchart, sequence, class, ER, state 등)를 따른다.
 
@@ -26,9 +29,12 @@ Claude 응답의 ```` ```mermaid ```` 코드 블록을 터미널 transcript에�
 
 ## 개발
 
-`hooks/hooks.js` 는 `src/hooks.js` + beautiful-mermaid ASCII 경로를 esbuild 로 묶은 산출물이며 커밋 대상이다(마켓플레이스 설치는 빌드 없이 그대로 쓴다).
+`hooks/hooks.js` 는 `src/hooks.js` + beautiful-mermaid ASCII 경로를 esbuild 로 묶은 산출물이며 커밋 대상이다(마켓플레이스 설치는 빌드 없이 그대로 쓴다). 번들은 약 140KB다.
+
+beautiful-mermaid 자체 SVG 렌더러(`renderMermaidSVG`)는 쓰지 않는다. 레이아웃 엔진 elkjs 때문에 번들이 1.8MB가 되고, Claude Code는 1MiB(1048576 bytes)를 넘는 hooks 모듈을 읽지 않는다(`is over 1048576 bytes and was not read`). 그래서 desktop에서도 ASCII 격자를 SVG로 옮겨 그린다.
 
 ```
 npm i
-npm test   # build + test/hooks.test.mjs
+npm test           # build + test/hooks.test.mjs
+npm run test:engine # claude plugin test: 실제 엔진에서 desktop·terminal 트리 확인
 ```

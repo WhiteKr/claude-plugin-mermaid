@@ -1,7 +1,7 @@
 {
   "name": "mermaid",
-  "version": "0.1.0",
-  "description": "Render ```mermaid fences in assistant replies as Unicode box-drawing diagrams in the terminal transcript",
+  "version": "0.2.0",
+  "description": "Render ```mermaid fences in assistant replies: Unicode box-drawing diagrams in the terminal, light/dark SVG on desktop, VS Code and mobile",
   "author": {
     "name": "WhiteKr",
     "email": "white_kr@icloud.com"
@@ -12,6 +12,8 @@
     "mermaid",
     "diagram",
     "ascii",
+    "svg",
+    "desktop",
     "ui.render"
   ],
   "userConfig": {

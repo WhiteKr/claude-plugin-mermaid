@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/hooks.js --bundle --format=esm --platform=neutral --minify-syntax --minify-whitespace --outfile=hooks/hooks.js",
-    "test": "npm run build && node test/hooks.test.mjs"
+    "test": "npm run build && node test/hooks.test.mjs",
+    "test:engine": "claude plugin test ."
   },
   "devDependencies": {
     "beautiful-mermaid": "^1.1.3",
