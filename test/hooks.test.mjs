@@ -45,17 +45,19 @@ assert.deepEqual([tree.props.children[0].props.text, tree.props.children[2].prop
 const { source, alt } = tree.props.children[1].props;
 assert.ok(source.startsWith('<svg'), 'svg source');
 assert.ok(/<text[^>]*>hooks<\/text>/.test(source), 'svg: label is text');
-assert.ok(source.includes('<path') && !/[─│┌┐└┘]/.test(source), 'svg: box lines are vectors, not glyphs');
-assert.ok(/<rect class="bg"/.test(source), 'svg: own background');
+assert.ok(!/^<svg[^>]*--(bg|fg):/.test(source), 'svg: no inline colour on the root, so the stylesheet decides');
+assert.ok(/@media \(prefers-color-scheme: dark\)\{svg\{--bg:[^;]+;--fg:/.test(source), 'background and text flip in one media query');
 assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(source), 'no external fetch');
-assert.ok(!source.includes('fonts.googleapis'), 'no web font');
-assert.ok(/@media \(prefers-color-scheme: dark\)\{\.bg[^@]*text\{/.test(source), 'background and text flip in one media query');
+assert.ok(!source.includes('fonts.googleapis') && !source.includes('@import'), 'no web font');
+assert.ok(!/ data-[\w-]+=/.test(source) && !/="[^"]*\d\.\d{3}/.test(source), 'svg: no data attributes, coordinates rounded');
 const flow = draw('desktop', '```mermaid\nflowchart LR\n  A[사용자 응답] --> B{mermaid 펜스?}\n  B -->|예| C[다이어그램으로 그림]\n  B -->|아니오| D[원문 유지]\n```').props.children[0].props.source;
-const verticals = [...flow.matchAll(/M[\d.]+ ([\d.]+)V([\d.]+)/g)].map(([, a, b]) => b - a);
-assert.ok(Math.max(...verticals) >= 5 * 18, 'vertical edge across rows is one continuous segment');
-assert.ok(/<text[^>]*>사용자 응답<\/text>/.test(flow), 'svg: hangul label is one text run');
+for (const label of ['사용자 응답', 'mermaid 펜스?', '다이어그램으로 그림', '원문 유지', '예', '아니오']) assert.ok(flow.includes('>' + label + '<'), `svg: label ${label}`);
+const td = draw('desktop', '```mermaid\nflowchart TD\n  S[시작] --> A\n  subgraph P[처리 단계]\n    A[입력] --> B[변환]\n  end\n  B --> F[완료]\n```').props.children[0].props.source;
+assert.ok(td.includes('>처리 단계<'), 'svg: subgraph header');
+for (const kind of ['sequenceDiagram\n  A->>B: 안녕', 'stateDiagram-v2\n  [*] --> 대기\n  대기 --> [*]', 'classDiagram\n  동물 <|-- 개', 'erDiagram\n  사용자 ||--o{ 주문 : 만든다'])
+  assert.equal(draw('desktop', '```mermaid\n' + kind + '\n```').props.children?.[0]?.type, 'Svg', 'svg: ' + kind.split('\n')[0]);
 const koSvg = draw('desktop', '```mermaid\nflowchart LR\n  A[사용자 & <b>] --> B[서버]\n```').props.children[0].props.source;
-assert.ok(koSvg.includes('&amp; &lt;b&gt;') || koSvg.includes('&amp;&lt;b&gt;'), 'svg escapes markup in labels');
+assert.ok(koSvg.includes('&amp;') && !koSvg.includes('<b>'), 'svg escapes markup in labels');
 assert.ok(alt.includes('A[hooks]'), 'alt is the mermaid source');
 assert.equal(draw('desktop', md, 20).type, 'Box', 'desktop: no width guard');
 

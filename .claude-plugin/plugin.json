@@ -1,7 +1,7 @@
 {
   "name": "mermaid",
   "version": "0.2.0",
-  "description": "Render ```mermaid fences in assistant replies: Unicode box-drawing diagrams in the terminal, light/dark SVG on desktop, VS Code and mobile",
+  "description": "Render ```mermaid fences in assistant replies: Unicode box-drawing diagrams in the terminal (lovely-mermaid), light/dark vector SVG on desktop, VS Code and mobile (beautiful-mermaid + dagre)",
   "author": {
     "name": "WhiteKr",
     "email": "white_kr@icloud.com"

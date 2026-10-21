@@ -16,9 +16,11 @@ Claude 응답의 ```` ```mermaid ```` 코드 블록을 다이어그램으로 바
 - `ui.render` 의 `AssistantMessage` 를 훅해 닫힌 ```` ```mermaid ```` 펜스를 다이어그램으로 바꾼다. 저장된 메시지(ctrl+o)는 바뀌지 않고 화면만 바뀐다.
 - `e.surface` 로 그리는 방식을 고른다(엔진의 `$.ui.resolve()` 는 터미널에도 `Svg` 키를 주므로 요소 표로는 고를 수 없다).
   - 터미널: [lovely-mermaid](https://github.com/xl0/lovely-mermaid) 로 펜스를 박스 문자 코드 블록으로 치환한다. 선이 상자에 바로 붙고, 한글 폭을 유니코드 폭 표로 재서 상자가 어긋나지 않으며, 가장 촘촘하게 그린다.
-  - desktop·VS Code·모바일: 메시지를 `Markdown` 과 `Svg` 로 나눠 그린다. SVG는 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) ASCII 렌더러가 그린 박스 문자 격자에서 선·모서리·화살촉을 벡터 선과 도형으로 다시 그리고, 라벨만 글자로 남겨 상자 가운데에 맞춘다. 그래서 글꼴과 상관없이 선이 끊기지 않고 한글 라벨도 벌어지지 않는다. 폭이 넘치면 칸에 맞게 줄어든다. SVG는 자기 배경을 가지며, 배경·선·글자색을 `prefers-color-scheme` 하나로 함께 바꾼다. 이미지 속 SVG는 화면이 아니라 OS 테마를 따르므로, 화면 테마가 OS와 달라도 글자가 배경에 묻히지 않게 하려는 것이다.
+  - desktop·VS Code·모바일: 메시지를 `Markdown` 과 `Svg` 로 나눠 그린다. SVG는 [beautiful-mermaid](https://github.com/lukilabs/beautiful-mermaid) 의 파서·렌더러로 그리고, 레이아웃 엔진 elkjs만 [dagre](https://github.com/dagrejs/dagre) 로 바꿔 끼운다. 도형·화살촉·라벨이 실제 벡터 다이어그램이 되고, 번들이 1MiB 상한 안에 든다. sequence와 xychart는 beautiful-mermaid 자체 레이아웃을 그대로 쓴다. SVG는 자기 배경을 가지며, 배경과 글자색(선·채움은 이 둘을 섞은 색)을 `prefers-color-scheme` 하나로 함께 바꾼다. 이미지 속 SVG는 화면이 아니라 OS 테마를 따르므로, 화면 테마가 OS와 달라도 글자가 배경에 묻히지 않게 하려는 것이다. 웹 글꼴은 불러오지 않고 시스템 글꼴을 쓴다.
 - 원문을 유지하는 경우: 파싱 실패, 다이어그램 폭이 터미널 폭을 넘김(터미널만), 펜스가 아직 안 닫힘(스트리밍 중).
-- 터미널 지원 다이어그램: flowchart, state, sequence, class, ER, pie, mindmap, timeline, gitGraph.
+- 지원 다이어그램
+  - 터미널: flowchart, state, sequence, class, ER, pie, mindmap, timeline, gitGraph.
+  - desktop·VS Code·모바일: flowchart, state, sequence, class, ER, xychart.
 
 ## 옵션
 
@@ -30,12 +32,15 @@ Claude 응답의 ```` ```mermaid ```` 코드 블록을 다이어그램으로 바
 
 - 터미널: lovely-mermaid가 좁은 자리에 놓인 전이 라벨을 자른다(state의 `재시도` 가 `재시` 로 보임).
 - 터미널: xychart는 lovely-mermaid가 그리지 않아 원문으로 남는다.
+- desktop: 서브그래프별 `direction` 은 무시된다. dagre는 그래프 하나에 방향 하나만 받는다.
+- desktop: pie, mindmap, timeline, gitGraph는 원문으로 남는다(beautiful-mermaid SVG 미지원).
+- desktop: 간선 배치는 ELK보다 단순하다. dagre의 사선 경로를 층 사이에서 직각으로 꺾고, 서브그래프 머리글 자리는 배치 뒤에 띠를 끼워 넓힌다. 복잡한 그래프에서는 간선이 서브그래프 머리글을 지나가거나 ELK보다 넓게 펴질 수 있다.
 
 ## 개발
 
-`hooks/hooks.js` 는 `src/hooks.js` + lovely-mermaid + beautiful-mermaid ASCII 경로를 esbuild 로 묶은 산출물이며 커밋 대상이다(마켓플레이스 설치는 빌드 없이 그대로 쓴다). 번들은 약 245KB다.
+`hooks/hooks.js` 는 `src/hooks.js` + lovely-mermaid + beautiful-mermaid 소스 + dagre를 `build.mjs`(esbuild)로 묶은 산출물이며 커밋 대상이다(마켓플레이스 설치는 빌드 없이 그대로 쓴다). 번들은 약 225KB다(이름까지 minify).
 
-beautiful-mermaid 자체 SVG 렌더러(`renderMermaidSVG`)는 쓰지 않는다. 레이아웃 엔진 elkjs 때문에 번들이 1.8MB가 되고, Claude Code는 1MiB(1048576 bytes)를 넘는 hooks 모듈을 읽지 않는다(`is over 1048576 bytes and was not read`). 그래서 desktop에서도 ASCII 격자를 SVG로 옮겨 그린다.
+beautiful-mermaid의 공개 SVG 렌더러는 레이아웃 엔진 elkjs 때문에 번들이 1.8MB가 되고, Claude Code는 1MiB(1048576 bytes)를 넘는 hooks 모듈을 읽지 않는다(`is over 1048576 bytes and was not read`). 그래서 `build.mjs` 가 beautiful-mermaid의 `elk-instance.ts` 를 `src/elk-dagre.js` 로 바꿔 끼운다. 이 파일은 ELK JSON 그래프를 받아 dagre로 배치한 뒤 ELK와 같은 모양으로 위치를 돌려주므로, beautiful-mermaid의 노드 크기 계산·층 정렬·간선 묶기·도형 클리핑을 그대로 쓴다. hooks 로더는 동적 `import()` 도 거부하므로 모두 정적으로 묶는다.
 
 ```
 npm i
