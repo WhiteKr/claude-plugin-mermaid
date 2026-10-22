@@ -58,6 +58,7 @@ const THEME =
   'svg{--bg:#FFFFFF;--fg:#27272A}@media (prefers-color-scheme: dark){svg{--bg:#1F1F23;--fg:#E4E4E7}}' +
   "text{font-family:system-ui,-apple-system,'Segoe UI','Noto Sans KR',sans-serif}";
 const SVG_MAX = 131072; // SvgProps.source 상한
+const WIDTH_MAX = 4096; // SvgProps.width 상한(px)
 
 // 이미지로만 쓰니 data-* 속성·CSS 주석·태그 사이 공백은 필요 없고, 좌표는 소수 둘째 자리면 충분하다.
 const tidy = (svg) =>
@@ -74,10 +75,14 @@ const tidy = (svg) =>
     })
     .replace(/>\s+</g, '><');
 
+// desktop은 Box를 stretch flex column으로 그려 너비 없는 이미지를 칸 폭까지 늘이므로 SVG 자신의 너비를 함께 준다.
+// 높이는 주지 않는다: 칸보다 넓으면 max-width:100%로 줄고 높이는 비율을 따른다.
+/** @returns {{ source: string, width: number } | null} */
 const svg = (source) =>
   cached('svg:' + source, () => {
     const out = tidy(renderMermaidSVG(source, { transparent: false }));
-    return out.length <= SVG_MAX ? out : null;
+    const width = Number(/^<svg[^>]* width="([\d.]+)"/.exec(out)?.[1]);
+    return out.length <= SVG_MAX && width > 0 ? { source: out, width: Math.min(width, WIDTH_MAX) } : null;
   });
 
 /** @returns {string | null} 펜스를 박스 문자로 바꾼 메시지, 바꾼 것이 없으면 null */
@@ -95,7 +100,7 @@ function terminalText(text, maxColumns, useAscii) {
   return changed ? out : null;
 }
 
-/** @returns {({ markdown: string } | { svg: string, alt: string })[] | null} 그린 SVG가 없으면 null */
+/** @returns {({ markdown: string } | { svg: { source: string, width: number }, alt: string })[] | null} 그린 SVG가 없으면 null */
 function desktopParts(text) {
   const parts = [];
   let pending = ''; // 연속한 markdown(실패한 펜스 포함)은 한 Markdown으로 합친다
@@ -104,13 +109,13 @@ function desktopParts(text) {
     pending = '';
   };
   for (const s of segments(text)) {
-    const source = s.kind === 'diagram' ? svg(s.source) : null;
-    if (source === null) {
+    const drawn = s.kind === 'diagram' ? svg(s.source) : null;
+    if (drawn === null) {
       pending += s.kind === 'markdown' ? s.text : s.fence;
       continue;
     }
     flush();
-    parts.push({ svg: source, alt: s.source });
+    parts.push({ svg: drawn, alt: s.source });
   }
   flush();
   return parts.some((p) => p.svg) ? parts : null;
@@ -144,7 +149,7 @@ export function register(on, options) {
     const parts = remember('d\n' + text, () => desktopParts(text));
     if (parts === null) return next(e);
     const { Box, Markdown, Svg } = $.ui.resolve(e);
-    const children = parts.map((p) => (p.svg ? Svg({ source: p.svg, alt: p.alt }) : Markdown({ text: p.markdown })));
+    const children = parts.map((p) => (p.svg ? Svg({ ...p.svg, alt: p.alt }) : Markdown({ text: p.markdown })));
     return Box({ flexDirection: 'column', gap: 1, children });
   });
 }
