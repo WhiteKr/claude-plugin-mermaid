@@ -50,6 +50,10 @@ assert.ok(/@media \(prefers-color-scheme: dark\)\{svg\{--bg:[^;]+;--fg:/.test(so
 assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(source), 'no external fetch');
 assert.ok(!source.includes('fonts.googleapis') && !source.includes('@import'), 'no web font');
 assert.ok(!/ data-[\w-]+=/.test(source) && !/="[^"]*\d\.\d{3}/.test(source), 'svg: no data attributes, coordinates rounded');
+// desktop은 Box를 align-items 기본값(stretch)의 flex column으로 그려 너비 없는 이미지를 칸 폭까지 늘인다.
+assert.equal(tree.props.children[1].props.width, Number(/^<svg[^>]* width="([\d.]+)"/.exec(source)[1]), 'svg: drawn at its own width, not stretched to the slot');
+const wide = draw('desktop', '```mermaid\nflowchart LR\n' + Array.from({ length: 60 }, (_, i) => `  N${i}[노드 ${i}] --> N${i + 1}`).join('\n') + '\n```').props.children[0].props;
+assert.equal(wide.width, 4096, 'svg: width capped at the engine limit');
 const flow = draw('desktop', '```mermaid\nflowchart LR\n  A[사용자 응답] --> B{mermaid 펜스?}\n  B -->|예| C[다이어그램으로 그림]\n  B -->|아니오| D[원문 유지]\n```').props.children[0].props.source;
 for (const label of ['사용자 응답', 'mermaid 펜스?', '다이어그램으로 그림', '원문 유지', '예', '아니오']) assert.ok(flow.includes('>' + label + '<'), `svg: label ${label}`);
 const td = draw('desktop', '```mermaid\nflowchart TD\n  S[시작] --> A\n  subgraph P[처리 단계]\n    A[입력] --> B[변환]\n  end\n  B --> F[완료]\n```').props.children[0].props.source;
